@@ -1,3 +1,32 @@
 spring:
   application:
     name: nimbus
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/nimbus
+    username: nimbus
+    password: nimbus
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+logging:
+  level:
+    org.flywaydb: DEBUG
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
