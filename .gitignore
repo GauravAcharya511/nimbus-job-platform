@@ -1,24 +1,26 @@
-# Compiled class file
-*.class
+# Maven
+target/
 
-# Log file
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Environment
+.env
+.env.*
+
+# Logs
+logs/
 *.log
 
-# BlueJ files
-*.ctxt
+# Java
+*.class
 
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
-*.jar
-*.war
-*.nar
-*.ear
-*.zip
-*.tar.gz
-*.rar
-
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
-hs_err_pid*
-replay_pid*
+# Temporary
+tmp/
