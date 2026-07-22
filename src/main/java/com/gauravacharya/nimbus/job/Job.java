@@ -47,6 +47,9 @@ public class Job {
     @Column(name = "user_id", updatable = false)
     private UUID userId;
 
+    @Column(name = "next_attempt_at", nullable = false)
+    private OffsetDateTime nextAttemptAt = OffsetDateTime.now();
+
     @PrePersist
     void onCreate() {
         OffsetDateTime now = OffsetDateTime.now();
@@ -78,4 +81,6 @@ public class Job {
     public void setCompletedAt(OffsetDateTime completedAt) { this.completedAt = completedAt; }
     public UUID getUserId() { return userId; }
     public void setUserId(UUID userId) { this.userId = userId; }
+    public OffsetDateTime getNextAttemptAt() { return nextAttemptAt; }
+    public void setNextAttemptAt(OffsetDateTime nextAttemptAt) { this.nextAttemptAt = nextAttemptAt; }
 }
