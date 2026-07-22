@@ -44,6 +44,9 @@ public class Job {
     @Column(name = "completed_at")
     private OffsetDateTime completedAt;
 
+    @Column(name = "user_id", updatable = false)
+    private UUID userId;
+
     @PrePersist
     void onCreate() {
         OffsetDateTime now = OffsetDateTime.now();
@@ -73,4 +76,6 @@ public class Job {
     public void setStartedAt(OffsetDateTime startedAt) { this.startedAt = startedAt; }
     public OffsetDateTime getCompletedAt() { return completedAt; }
     public void setCompletedAt(OffsetDateTime completedAt) { this.completedAt = completedAt; }
+    public UUID getUserId() { return userId; }
+    public void setUserId(UUID userId) { this.userId = userId; }
 }

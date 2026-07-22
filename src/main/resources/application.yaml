@@ -30,3 +30,9 @@ management:
     web:
       exposure:
         include: health,info,metrics
+
+nimbus:
+  jwt:
+    # Override in production via NIMBUS_JWT_SECRET. Must be >= 32 bytes for HS256.
+    secret: ${NIMBUS_JWT_SECRET:dev-only-secret-change-me-min-32-bytes-long!!}
+    expiration-minutes: 60

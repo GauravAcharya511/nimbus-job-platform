@@ -77,6 +77,32 @@ Location: /api/jobs/178286d9-1413-43cd-961e-220fe61f1f7d
 }
 ```
 
+### Authentication
+
+Register or log in to receive a JWT, then send it as a bearer token on every request.
+
+```bash
+curl -s -X POST http://localhost:8080/api/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","password":"password123","firstName":"Your","lastName":"Name"}'
+```
+
+```json
+{ "token": "eyJhbGciOiJIUzI1NiJ9...", "tokenType": "Bearer", "expiresInMinutes": 60 }
+```
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/jobs
+```
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/auth/register` | Create an account. Returns `201` + JWT. |
+| `POST` | `/api/auth/login` | Exchange credentials for a JWT. |
+
+Passwords are hashed with BCrypt. The signing secret is read from `NIMBUS_JWT_SECRET`
+and never committed; the checked-in default is for local development only.
+
 | Method | Endpoint | Description |
 |---|---|---|
 | `POST` | `/api/jobs` | Submit a job. Returns `201` + `Location`. |
@@ -96,6 +122,10 @@ Errors are returned as [RFC 7807](https://datatracker.ietf.org/doc/html/rfc7807)
 
 **Tests run against real PostgreSQL.** Testcontainers starts an actual database and applies the real migrations. An in-memory database such as H2 would pass the constraint tests vacuously, since it does not enforce the same rules.
 
+**Unknown resources return 404, not 403.** Job lookups are scoped by owner
+(`findByIdAndUserId`), so requesting another user's job is indistinguishable from
+requesting one that does not exist. A 403 would confirm the resource exists.
+
 ## Testing
 
 ```bash
@@ -108,7 +138,7 @@ Errors are returned as [RFC 7807](https://datatracker.ietf.org/doc/html/rfc7807)
 ## Roadmap
 
 - [x] **v0.1** — Job submission API, migrations, integration tests, CI
-- [ ] **v0.2** — JWT authentication and per-user job ownership
+- [x] **v0.2** — JWT authentication and per-user job ownership
 - [ ] **v0.3** — Worker execution with retries and exponential backoff
 - [ ] **v0.4** — Scheduled and recurring jobs
 - [ ] **v0.5** — Redis-backed queue and distributed locking

@@ -1,5 +1,6 @@
 package com.gauravacharya.nimbus.config;
 
+import com.gauravacharya.nimbus.auth.AuthException;
 import com.gauravacharya.nimbus.job.JobNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -14,6 +15,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(JobNotFoundException.class)
     ProblemDetail handleNotFound(JobNotFoundException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());
+    }
+
+    @ExceptionHandler(AuthException.class)
+    ProblemDetail handleAuth(AuthException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, e.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
