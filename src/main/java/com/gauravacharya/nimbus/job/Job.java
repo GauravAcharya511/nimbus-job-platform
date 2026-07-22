@@ -50,6 +50,12 @@ public class Job {
     @Column(name = "next_attempt_at", nullable = false)
     private OffsetDateTime nextAttemptAt = OffsetDateTime.now();
 
+    @Column(name = "cron_expression", length = 120)
+    private String cronExpression;
+
+    @Column(name = "parent_job_id")
+    private UUID parentJobId;
+
     @PrePersist
     void onCreate() {
         OffsetDateTime now = OffsetDateTime.now();
@@ -83,4 +89,8 @@ public class Job {
     public void setUserId(UUID userId) { this.userId = userId; }
     public OffsetDateTime getNextAttemptAt() { return nextAttemptAt; }
     public void setNextAttemptAt(OffsetDateTime nextAttemptAt) { this.nextAttemptAt = nextAttemptAt; }
+    public String getCronExpression() { return cronExpression; }
+    public void setCronExpression(String cronExpression) { this.cronExpression = cronExpression; }
+    public UUID getParentJobId() { return parentJobId; }
+    public void setParentJobId(UUID parentJobId) { this.parentJobId = parentJobId; }
 }
