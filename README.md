@@ -102,6 +102,29 @@ Errors come back as [RFC 7807](https://datatracker.ietf.org/doc/html/rfc7807) pr
 { "status": 400, "detail": "type: type is required" }
 ```
 
+### Scheduling
+
+Run something later:
+
+```bash
+-d '{"type":"echo","payload":"later","scheduledAt":"2026-08-01T09:00:00Z"}'
+```
+
+Or on a schedule — standard Spring cron, six fields including seconds:
+
+```bash
+-d '{"type":"echo","payload":"nightly","cronExpression":"0 0 3 * * *"}'
+```
+
+Recurring jobs work by enqueueing the next occurrence when a run succeeds, rather than
+mutating a single row. Every run keeps its own status, timing, and error, and each links
+back to the original through `parentJobId` — so the full execution history of a schedule
+stays queryable. A failed run retries on its own backoff and does not spawn a successor,
+which keeps a broken schedule from multiplying into an unbounded queue of failures.
+
+Invalid cron expressions are rejected at submission with a `400` rather than failing
+silently at execution time.
+
 ### Job types
 
 Executors are discovered at startup by implementing an interface, so adding a new job type means adding one class — no registry to update, no switch statement to extend.
@@ -252,7 +275,7 @@ A few things cost me more time than they should have, recorded here in case they
 - [x] **v0.1** — Job submission API, migrations, integration tests, CI
 - [x] **v0.2** — JWT auth, BCrypt, per-user job ownership
 - [x] **v0.3** — Worker execution, retries with exponential backoff, dead-lettering
-- [ ] **v0.4** — Scheduled and recurring jobs
+- [x] **v0.4** — Scheduled and recurring jobs
 - [ ] **v0.5** — Redis-backed queue and distributed locking
 - [ ] **v0.6** — Kafka events for the job lifecycle
 - [ ] **v0.7** — Prometheus metrics and Grafana dashboards

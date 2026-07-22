@@ -2,6 +2,7 @@ package com.gauravacharya.nimbus.worker;
 
 import com.gauravacharya.nimbus.job.Job;
 import com.gauravacharya.nimbus.job.JobRepository;
+import com.gauravacharya.nimbus.job.JobService;
 import com.gauravacharya.nimbus.job.JobStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,7 +18,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Polls for due jobs and executes them.
+ * Claims due jobs and executes them.
  *
  * Claiming and executing run in separate transactions: the claim marks jobs RUNNING
  * under a row lock and commits immediately, so locks are not held for the duration
@@ -34,7 +35,7 @@ public class JobWorker {
     private final int batchSize;
 
     public JobWorker(JobRepository jobs, JobExecutorRegistry registry, ApplicationContext context,
-                     @Value("${nimbus.worker.batch-size:10}") int batchSize) {
+                     @Value("${nimbus.worker.batch-size:50}") int batchSize) {
         this.jobs = jobs;
         this.registry = registry;
         this.context = context;
@@ -44,8 +45,7 @@ public class JobWorker {
     private JobWorker self() { return context.getBean(JobWorker.class); }
 
     public void poll() {
-        List<UUID> claimed = self().claimBatch();
-        for (UUID id : claimed) {
+        for (UUID id : self().claimBatch()) {
             self().runJob(id);
         }
     }
@@ -75,6 +75,34 @@ public class JobWorker {
             markFailedOrRetry(job, e);
         }
         jobs.save(job);
+
+        if (job.getStatus() == JobStatus.SUCCEEDED && job.getCronExpression() != null) {
+            scheduleNextOccurrence(job);
+        }
+    }
+
+    /**
+     * Enqueues the following occurrence of a recurring job. Each run is a distinct
+     * row linked to the originating job, so execution history is preserved rather
+     * than overwritten.
+     */
+    private void scheduleNextOccurrence(Job completed) {
+        OffsetDateTime next = JobService.nextOccurrence(
+                completed.getCronExpression(), OffsetDateTime.now());
+
+        Job occurrence = new Job();
+        occurrence.setType(completed.getType());
+        occurrence.setPayload(completed.getPayload());
+        occurrence.setUserId(completed.getUserId());
+        occurrence.setStatus(JobStatus.PENDING);
+        occurrence.setCronExpression(completed.getCronExpression());
+        occurrence.setMaxAttempts(completed.getMaxAttempts());
+        occurrence.setNextAttemptAt(next);
+        occurrence.setParentJobId(
+                completed.getParentJobId() != null ? completed.getParentJobId() : completed.getId());
+
+        jobs.save(occurrence);
+        log.info("recurring job {} scheduled next occurrence at {}", completed.getId(), next);
     }
 
     private void markSucceeded(Job job) {

@@ -3,8 +3,11 @@ package com.gauravacharya.nimbus.job;
 import com.gauravacharya.nimbus.security.CurrentUser;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Service
@@ -21,7 +24,29 @@ public class JobService {
         job.setPayload(request.payload());
         job.setStatus(JobStatus.PENDING);
         job.setUserId(CurrentUser.id());
+
+        if (request.cronExpression() != null && !request.cronExpression().isBlank()) {
+            String cron = request.cronExpression().trim();
+            if (!CronExpression.isValidExpression(cron)) {
+                throw new InvalidCronException(cron);
+            }
+            job.setCronExpression(cron);
+            // First occurrence is the next time the expression fires.
+            job.setNextAttemptAt(nextOccurrence(cron, OffsetDateTime.now()));
+        } else {
+            job.setNextAttemptAt(
+                    request.scheduledAt() != null ? request.scheduledAt() : OffsetDateTime.now());
+        }
+
         return JobResponse.from(repository.save(job));
+    }
+
+    public static OffsetDateTime nextOccurrence(String cron, OffsetDateTime from) {
+        var next = CronExpression.parse(cron).next(from.toZonedDateTime());
+        if (next == null) {
+            throw new InvalidCronException(cron);
+        }
+        return next.toOffsetDateTime();
     }
 
     @Transactional(readOnly = true)
