@@ -48,7 +48,7 @@ Nimbus is a **modular monolith**. Packages are organized by domain (`job`, `conf
 
 ```bash
 docker compose up -d          # start PostgreSQL
-./mvnw spring-boot:run        # Flyway migrates, app serves on :8080
+./mvnw spring-boot:run        # Flyway migrates, app serves on :8081 (override with NIMBUS_PORT)
 ```
 
 ## API
@@ -56,7 +56,7 @@ docker compose up -d          # start PostgreSQL
 Submit a job:
 
 ```bash
-curl -i -X POST http://localhost:8080/api/jobs \
+curl -i -X POST http://localhost:8081/api/jobs \
   -H 'Content-Type: application/json' \
   -d '{"type":"send-email","payload":"{\"to\":\"user@example.com\"}"}'
 ```
@@ -82,7 +82,7 @@ Location: /api/jobs/178286d9-1413-43cd-961e-220fe61f1f7d
 Register or log in to receive a JWT, then send it as a bearer token on every request.
 
 ```bash
-curl -s -X POST http://localhost:8080/api/auth/register \
+curl -s -X POST http://localhost:8081/api/auth/register \
   -H 'Content-Type: application/json' \
   -d '{"email":"you@example.com","password":"password123","firstName":"Your","lastName":"Name"}'
 ```
@@ -92,7 +92,7 @@ curl -s -X POST http://localhost:8080/api/auth/register \
 ```
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/jobs
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/jobs
 ```
 
 | Method | Endpoint | Description |
@@ -126,6 +126,16 @@ Errors are returned as [RFC 7807](https://datatracker.ietf.org/doc/html/rfc7807)
 (`findByIdAndUserId`), so requesting another user's job is indistinguishable from
 requesting one that does not exist. A 403 would confirm the resource exists.
 
+**Workers claim jobs with `SELECT ... FOR UPDATE SKIP LOCKED`.** Each worker locks
+the rows it claims and skips rows another worker already holds, so instances partition
+the queue with no coordination service and never execute the same job twice. Claiming
+and executing run in separate transactions, so row locks are not held for the duration
+of the work.
+
+**Failures retry with exponential backoff, then dead-letter.** A failed attempt sets
+`next_attempt_at` to now + 2^attempts seconds and returns the job to `PENDING`. Once
+`attempts` reaches `max_attempts` the job is marked `FAILED` and no longer claimed.
+
 ## Testing
 
 ```bash
@@ -139,7 +149,7 @@ requesting one that does not exist. A 403 would confirm the resource exists.
 
 - [x] **v0.1** — Job submission API, migrations, integration tests, CI
 - [x] **v0.2** — JWT authentication and per-user job ownership
-- [ ] **v0.3** — Worker execution with retries and exponential backoff
+- [x] **v0.3** — Worker execution with retries and exponential backoff
 - [ ] **v0.4** — Scheduled and recurring jobs
 - [ ] **v0.5** — Redis-backed queue and distributed locking
 - [ ] **v0.6** — Kafka event stream for job lifecycle events
