@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
+@SpringBootTest(properties = "nimbus.worker.scheduled=false")
 @Import(PostgresTestContainer.class)
 class JobWorkerTest {
 

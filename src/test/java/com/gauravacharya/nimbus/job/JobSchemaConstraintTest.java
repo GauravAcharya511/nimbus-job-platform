@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * Verifies database-level integrity rules independent of application code.
  * These would silently pass against an in-memory database like H2.
  */
-@SpringBootTest
+@SpringBootTest(properties = "nimbus.worker.scheduled=false")
 @Import(PostgresTestContainer.class)
 class JobSchemaConstraintTest {
 

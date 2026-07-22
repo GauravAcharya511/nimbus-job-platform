@@ -18,7 +18,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
+@SpringBootTest(properties = "nimbus.worker.scheduled=false")
 @AutoConfigureMockMvc
 @Import(PostgresTestContainer.class)
 class AuthIntegrationTest {

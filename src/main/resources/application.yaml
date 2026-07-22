@@ -35,6 +35,9 @@ management:
         include: health,info,metrics
 
 nimbus:
+  worker:
+    poll-interval-ms: ${NIMBUS_WORKER_POLL_MS:200}
+    batch-size: ${NIMBUS_WORKER_BATCH_SIZE:50}
   jwt:
     # Override in production via NIMBUS_JWT_SECRET. Must be >= 32 bytes for HS256.
     secret: ${NIMBUS_JWT_SECRET:dev-only-secret-change-me-min-32-bytes-long!!}

@@ -8,7 +8,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,7 +43,6 @@ public class JobWorker {
 
     private JobWorker self() { return context.getBean(JobWorker.class); }
 
-    @Scheduled(fixedDelayString = "${nimbus.worker.poll-interval-ms:1000}")
     public void poll() {
         List<UUID> claimed = self().claimBatch();
         for (UUID id : claimed) {
