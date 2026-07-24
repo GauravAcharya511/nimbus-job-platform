@@ -125,6 +125,48 @@ which keeps a broken schedule from multiplying into an unbounded queue of failur
 Invalid cron expressions are rejected at submission with a `400` rather than failing
 silently at execution time.
 
+### Cancellation
+
+```bash
+curl -X DELETE http://localhost:8081/api/jobs/{id} -H "Authorization: Bearer $TOKEN"
+```
+
+Cancelling any occurrence of a recurring job stops the whole schedule — the worker
+checks the series before enqueueing a successor. A `RUNNING` job is rejected with `409`:
+it is already executing, and interrupting it would leave its side effects half-applied.
+Doing that properly needs cooperative cancellation, where the executor checks a flag at
+safe points, which is future work rather than something to fake.
+
+### Lifecycle events
+
+Every state transition is published to Kafka: `SUBMITTED`, `STARTED`, `SUCCEEDED`,
+`RETRY_SCHEDULED`, `DEAD_LETTERED`, `CANCELLED`.
+
+```bash
+docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 --topic nimbus.job.events --from-beginning
+```
+
+A failing job produces the full trace:
+
+```
+40a6affa  SUBMITTED        attempts=0
+40a6affa  STARTED          attempts=0
+40a6affa  RETRY_SCHEDULED  attempts=1
+40a6affa  STARTED          attempts=1
+40a6affa  RETRY_SCHEDULED  attempts=2
+40a6affa  STARTED          attempts=2
+40a6affa  DEAD_LETTERED    attempts=3
+```
+
+Kafka is used for **fan-out, not queuing**. PostgreSQL already handles the queue
+correctly through `SKIP LOCKED`, with transactional guarantees and queryable state that
+a log would not give us. What Kafka adds is letting other systems react to job state
+without polling the database. Events are keyed by job id so all events for one job land
+on the same partition and stay ordered, and they carry identifiers rather than payloads
+so user data never reaches the topic. Publishing is best-effort: a broker outage should
+degrade observability, not fail the job it is reporting on.
+
 ### Job types
 
 Executors are discovered at startup by implementing an interface, so adding a new job type means adding one class — no registry to update, no switch statement to extend.
@@ -303,7 +345,7 @@ A few things cost me more time than they should have, recorded here in case they
 - [x] **v0.3** — Worker execution, retries with exponential backoff, dead-lettering
 - [x] **v0.4** — Scheduled and recurring jobs
 - [x] **v0.5** — Redis-backed rate limiting and read caching
-- [ ] **v0.6** — Kafka events for the job lifecycle
+- [x] **v0.6** — Kafka job lifecycle events and job cancellation
 - [ ] **v0.7** — Prometheus metrics and Grafana dashboards
 - [ ] **v0.8** — Horizontally scaled workers
 

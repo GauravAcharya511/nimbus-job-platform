@@ -2,6 +2,7 @@ package com.gauravacharya.nimbus.config;
 
 import com.gauravacharya.nimbus.auth.AuthException;
 import com.gauravacharya.nimbus.job.InvalidCronException;
+import com.gauravacharya.nimbus.job.JobNotCancellableException;
 import com.gauravacharya.nimbus.job.JobNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -26,6 +27,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidCronException.class)
     ProblemDetail handleInvalidCron(InvalidCronException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
+    }
+
+    @ExceptionHandler(JobNotCancellableException.class)
+    ProblemDetail handleNotCancellable(JobNotCancellableException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

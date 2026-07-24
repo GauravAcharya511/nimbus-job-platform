@@ -31,4 +31,7 @@ public class JobController {
 
     @GetMapping("/{id}")
     public JobResponse get(@PathVariable UUID id) { return service.findById(id); }
+
+    @DeleteMapping("/{id}")
+    public JobResponse cancel(@PathVariable UUID id) { return service.cancel(id); }
 }

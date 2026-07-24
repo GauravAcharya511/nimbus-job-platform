@@ -1,5 +1,8 @@
 package com.gauravacharya.nimbus.job;
 
+import com.gauravacharya.nimbus.events.JobEvent;
+import com.gauravacharya.nimbus.events.JobEventPublisher;
+import com.gauravacharya.nimbus.events.JobEventType;
 import com.gauravacharya.nimbus.security.CurrentUser;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -16,8 +19,12 @@ import java.util.UUID;
 public class JobService {
 
     private final JobRepository repository;
+    private final JobEventPublisher events;
 
-    public JobService(JobRepository repository) { this.repository = repository; }
+    public JobService(JobRepository repository, JobEventPublisher events) {
+        this.repository = repository;
+        this.events = events;
+    }
 
     @CacheEvict(value = "jobs", allEntries = true)
     @Transactional
@@ -41,7 +48,10 @@ public class JobService {
                     request.scheduledAt() != null ? request.scheduledAt() : OffsetDateTime.now());
         }
 
-        return JobResponse.from(repository.save(job));
+        Job saved = repository.save(job);
+        events.publish(JobEvent.of(saved.getId(), saved.getUserId(), saved.getType(),
+                JobEventType.SUBMITTED, saved.getAttempts(), null));
+        return JobResponse.from(saved);
     }
 
     public static OffsetDateTime nextOccurrence(String cron, OffsetDateTime from) {
@@ -50,6 +60,35 @@ public class JobService {
             throw new InvalidCronException(cron);
         }
         return next.toOffsetDateTime();
+    }
+
+    /**
+     * Cancels a job. A running job is left alone: it is already executing and
+     * interrupting it mid-flight would leave its side effects half-applied.
+     * Cancelling any occurrence of a recurring job stops the whole schedule.
+     */
+    @Transactional
+    public JobResponse cancel(UUID id) {
+        Job job = repository.findByIdAndUserId(id, CurrentUser.id())
+                .orElseThrow(() -> new JobNotFoundException(id));
+
+        if (job.getStatus() == JobStatus.RUNNING) {
+            throw new JobNotCancellableException(id, job.getStatus());
+        }
+        if (job.getStatus() == JobStatus.SUCCEEDED || job.getStatus() == JobStatus.FAILED) {
+            // terminal already; cancelling is only meaningful for the schedule itself
+            if (job.getCronExpression() == null) {
+                throw new JobNotCancellableException(id, job.getStatus());
+            }
+        }
+
+        job.setStatus(JobStatus.CANCELLED);
+        job.setCompletedAt(OffsetDateTime.now());
+        Job saved = repository.save(job);
+
+        events.publish(JobEvent.of(saved.getId(), saved.getUserId(), saved.getType(),
+                JobEventType.CANCELLED, saved.getAttempts(), null));
+        return JobResponse.from(saved);
     }
 
     @Transactional(readOnly = true)
