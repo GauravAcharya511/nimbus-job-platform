@@ -38,4 +38,15 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
            ORDER BY j.nextAttemptAt ASC
            """)
     List<Job> claimDueJobs(@Param("now") OffsetDateTime now, Pageable pageable);
+
+    /**
+     * True if any job in a recurring series has been cancelled. Cancelling one
+     * occurrence stops the whole schedule from producing further runs.
+     */
+    @Query("""
+           SELECT COUNT(j) > 0 FROM Job j
+           WHERE j.status = com.gauravacharya.nimbus.job.JobStatus.CANCELLED
+             AND (j.id = :seriesId OR j.parentJobId = :seriesId)
+           """)
+    boolean existsCancelledInSeries(@Param("seriesId") UUID seriesId);
 }

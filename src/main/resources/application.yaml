@@ -11,6 +11,21 @@ spring:
     password: nimbus
     driver-class-name: org.postgresql.Driver
 
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+    consumer:
+      group-id: nimbus
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: com.gauravacharya.nimbus.events
+
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
@@ -41,6 +56,9 @@ management:
         include: health,info,metrics
 
 nimbus:
+  events:
+    enabled: ${NIMBUS_EVENTS_ENABLED:true}
+    topic: ${NIMBUS_EVENTS_TOPIC:nimbus.job.events}
   ratelimit:
     enabled: ${NIMBUS_RATELIMIT_ENABLED:true}
     capacity: ${NIMBUS_RATELIMIT_CAPACITY:100}

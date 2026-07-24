@@ -1,5 +1,8 @@
 package com.gauravacharya.nimbus.worker;
 
+import com.gauravacharya.nimbus.events.JobEvent;
+import com.gauravacharya.nimbus.events.JobEventPublisher;
+import com.gauravacharya.nimbus.events.JobEventType;
 import com.gauravacharya.nimbus.job.Job;
 import com.gauravacharya.nimbus.job.JobRepository;
 import com.gauravacharya.nimbus.job.JobService;
@@ -31,13 +34,16 @@ public class JobWorker {
 
     private final JobRepository jobs;
     private final JobExecutorRegistry registry;
+    private final JobEventPublisher events;
     private final ApplicationContext context;
     private final int batchSize;
 
-    public JobWorker(JobRepository jobs, JobExecutorRegistry registry, ApplicationContext context,
+    public JobWorker(JobRepository jobs, JobExecutorRegistry registry, JobEventPublisher events,
+                     ApplicationContext context,
                      @Value("${nimbus.worker.batch-size:50}") int batchSize) {
         this.jobs = jobs;
         this.registry = registry;
+        this.events = events;
         this.context = context;
         this.batchSize = batchSize;
     }
@@ -57,7 +63,10 @@ public class JobWorker {
             job.setStatus(JobStatus.RUNNING);
             job.setStartedAt(OffsetDateTime.now());
         }
-        return jobs.saveAll(due).stream().map(Job::getId).toList();
+        List<Job> claimed = jobs.saveAll(due);
+        claimed.forEach(j -> events.publish(JobEvent.of(
+                j.getId(), j.getUserId(), j.getType(), JobEventType.STARTED, j.getAttempts(), null)));
+        return claimed.stream().map(Job::getId).toList();
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -76,7 +85,8 @@ public class JobWorker {
         }
         jobs.save(job);
 
-        if (job.getStatus() == JobStatus.SUCCEEDED && job.getCronExpression() != null) {
+        if (job.getStatus() == JobStatus.SUCCEEDED && job.getCronExpression() != null
+                && !jobs.existsCancelledInSeries(seriesId(job))) {
             scheduleNextOccurrence(job);
         }
     }
@@ -86,6 +96,10 @@ public class JobWorker {
      * row linked to the originating job, so execution history is preserved rather
      * than overwritten.
      */
+    private static UUID seriesId(Job job) {
+        return job.getParentJobId() != null ? job.getParentJobId() : job.getId();
+    }
+
     private void scheduleNextOccurrence(Job completed) {
         OffsetDateTime next = JobService.nextOccurrence(
                 completed.getCronExpression(), OffsetDateTime.now());
@@ -101,7 +115,9 @@ public class JobWorker {
         occurrence.setParentJobId(
                 completed.getParentJobId() != null ? completed.getParentJobId() : completed.getId());
 
-        jobs.save(occurrence);
+        Job saved = jobs.save(occurrence);
+        events.publish(JobEvent.of(saved.getId(), saved.getUserId(), saved.getType(),
+                JobEventType.SUBMITTED, 0, null));
         log.info("recurring job {} scheduled next occurrence at {}", completed.getId(), next);
     }
 
@@ -109,6 +125,8 @@ public class JobWorker {
         job.setStatus(JobStatus.SUCCEEDED);
         job.setCompletedAt(OffsetDateTime.now());
         job.setErrorMessage(null);
+        events.publish(JobEvent.of(job.getId(), job.getUserId(), job.getType(),
+                JobEventType.SUCCEEDED, job.getAttempts(), null));
     }
 
     private void markFailedOrRetry(Job job, Exception e) {
@@ -119,11 +137,15 @@ public class JobWorker {
         if (attempts >= job.getMaxAttempts()) {
             job.setStatus(JobStatus.FAILED);
             job.setCompletedAt(OffsetDateTime.now());
+            events.publish(JobEvent.of(job.getId(), job.getUserId(), job.getType(),
+                    JobEventType.DEAD_LETTERED, attempts, e.getMessage()));
             log.warn("job {} exhausted {} attempts, dead-lettering", job.getId(), attempts);
         } else {
             long backoffSeconds = (long) Math.pow(2, attempts);
             job.setStatus(JobStatus.PENDING);
             job.setNextAttemptAt(OffsetDateTime.now().plusSeconds(backoffSeconds));
+            events.publish(JobEvent.of(job.getId(), job.getUserId(), job.getType(),
+                    JobEventType.RETRY_SCHEDULED, attempts, e.getMessage()));
             log.info("job {} attempt {} failed, retrying in {}s", job.getId(), attempts, backoffSeconds);
         }
     }
