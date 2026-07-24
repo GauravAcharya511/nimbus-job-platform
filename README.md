@@ -10,7 +10,7 @@ Java 21 · Spring Boot 4 · PostgreSQL · Flyway · Docker · Testcontainers
 
 ## Why this exists
 
-I wanted a project where the interesting problems were real ones — concurrent workers competing for the same queue, what happens when a job fails halfway through, how you stop one user from reading another's data. Most tutorial backends stop at CRUD. This one starts there and keeps going.
+I wanted a project where the interesting problems were real ones - concurrent workers competing for the same queue, what happens when a job fails halfway through, how you stop one user from reading another's data. Most tutorial backends stop at CRUD. This one starts there and keeps going.
 
 Everything here runs. `docker compose up` gets you a working system in one command, and the benchmark script at the bottom is the same one I used to produce the numbers in this README.
 
@@ -22,7 +22,7 @@ cd nimbus-job-platform
 docker compose up -d --build
 ```
 
-That starts PostgreSQL, waits for it to pass a health check, runs the Flyway migrations, and brings up the app on port 8081. Give it about a minute on first run — Maven downloads the world inside the build container.
+That starts PostgreSQL, waits for it to pass a health check, runs the Flyway migrations, and brings up the app on port 8081. Give it about a minute on first run - Maven downloads the world inside the build container.
 
 ```bash
 curl http://localhost:8081/actuator/health
@@ -70,7 +70,7 @@ HTTP/1.1 201 Created
 Location: /api/jobs/259e1680-d5ae-49f9-a995-dad576586fb6
 ```
 
-Wait a moment and read it back — the worker will have picked it up:
+Wait a moment and read it back - the worker will have picked it up:
 
 ```json
 {
@@ -91,7 +91,7 @@ Wait a moment and read it back — the worker will have picked it up:
 |---|---|---|
 | `POST` | `/api/auth/register` | Create an account, get a token back |
 | `POST` | `/api/auth/login` | Exchange credentials for a token |
-| `POST` | `/api/jobs` | Submit a job — returns `201` and a `Location` header |
+| `POST` | `/api/jobs` | Submit a job - returns `201` and a `Location` header |
 | `GET` | `/api/jobs?page=0&size=20` | List your jobs, paginated |
 | `GET` | `/api/jobs/{id}` | Fetch one job |
 | `GET` | `/actuator/health` | Health check |
@@ -110,7 +110,7 @@ Run something later:
 -d '{"type":"echo","payload":"later","scheduledAt":"2026-08-01T09:00:00Z"}'
 ```
 
-Or on a schedule — standard Spring cron, six fields including seconds:
+Or on a schedule - standard Spring cron, six fields including seconds:
 
 ```bash
 -d '{"type":"echo","payload":"nightly","cronExpression":"0 0 3 * * *"}'
@@ -118,7 +118,7 @@ Or on a schedule — standard Spring cron, six fields including seconds:
 
 Recurring jobs work by enqueueing the next occurrence when a run succeeds, rather than
 mutating a single row. Every run keeps its own status, timing, and error, and each links
-back to the original through `parentJobId` — so the full execution history of a schedule
+back to the original through `parentJobId` - so the full execution history of a schedule
 stays queryable. A failed run retries on its own backoff and does not spawn a successor,
 which keeps a broken schedule from multiplying into an unbounded queue of failures.
 
@@ -131,7 +131,7 @@ silently at execution time.
 curl -X DELETE http://localhost:8081/api/jobs/{id} -H "Authorization: Bearer $TOKEN"
 ```
 
-Cancelling any occurrence of a recurring job stops the whole schedule — the worker
+Cancelling any occurrence of a recurring job stops the whole schedule - the worker
 checks the series before enqueueing a successor. A `RUNNING` job is rejected with `409`:
 it is already executing, and interrupting it would leave its side effects half-applied.
 Doing that properly needs cooperative cancellation, where the executor checks a flag at
@@ -169,7 +169,7 @@ degrade observability, not fail the job it is reporting on.
 
 ### Job types
 
-Executors are discovered at startup by implementing an interface, so adding a new job type means adding one class — no registry to update, no switch statement to extend.
+Executors are discovered at startup by implementing an interface, so adding a new job type means adding one class - no registry to update, no switch statement to extend.
 
 ```java
 @Component
@@ -240,7 +240,7 @@ stateDiagram-v2
 
 **Workers claim jobs with `SELECT … FOR UPDATE SKIP LOCKED`.**
 
-This is the heart of the thing. Each worker locks the rows it claims, and `SKIP LOCKED` means it steps over rows another worker is already holding instead of blocking behind them. Multiple workers partition the queue between themselves with no coordinator, no Redis lock, no leader election — just Postgres doing what it's good at. There's a test that runs four threads against thirty jobs and asserts every job executed exactly once.
+This is the heart of the thing. Each worker locks the rows it claims, and `SKIP LOCKED` means it steps over rows another worker is already holding instead of blocking behind them. Multiple workers partition the queue between themselves with no coordinator, no Redis lock, no leader election - just Postgres doing what it's good at. There's a test that runs four threads against thirty jobs and asserts every job executed exactly once.
 
 Claiming and executing are deliberately separate transactions. The claim marks jobs `RUNNING` and commits straight away, so a slow job doesn't sit on a row lock for its entire duration.
 
@@ -309,13 +309,13 @@ Measured against the containerized stack on Apple Silicon, single worker instanc
 
 | | |
 |---|---|
-| Submission throughput | **350 req/sec** — 1,000 jobs in 2.86s |
-| Execution throughput | **370 jobs/sec** — 1,000 jobs drained in 2.70s |
+| Submission throughput | **350 req/sec** - 1,000 jobs in 2.86s |
+| Execution throughput | **370 jobs/sec** - 1,000 jobs drained in 2.70s |
 | Single job, end to end | **~18 ms** from submit to `SUCCEEDED` |
 | Job read, uncached (Postgres) | 2.15 ms p50 |
-| Job read, cached (Redis) | **1.20 ms p50** — 1.8× faster |
+| Job read, cached (Redis) | **1.20 ms p50** - 1.8× faster |
 
-The interesting part is how I got there. My first run drained at 10 jobs/sec and I nearly wrote that number down. It was wrong — or rather, it was measuring the wrong thing. The worker polled once per second with a batch size of 10, so it was structurally incapable of exceeding 10 jobs/sec no matter how fast anything else ran. Dropping the poll to 200ms and the batch to 50 took it to 370 jobs/sec. Same query, same database, 37× the throughput.
+The interesting part is how I got there. My first run drained at 10 jobs/sec and I nearly wrote that number down. It was wrong - or rather, it was measuring the wrong thing. The worker polled once per second with a batch size of 10, so it was structurally incapable of exceeding 10 jobs/sec no matter how fast anything else ran. Dropping the poll to 200ms and the batch to 50 took it to 370 jobs/sec. Same query, same database, 37× the throughput.
 
 Both knobs are configurable:
 
@@ -335,8 +335,8 @@ than the system. I found that out by having a benchmark throttle itself.
 
 The caching result is deliberately unimpressive and worth being honest about: 1.8× is a
 small win because the uncached path is already a primary-key lookup on a local database
-with a warm pool, around 2 ms. Caching pays for itself when the source is slow — complex
-joins, a remote database, cross-region latency — not when it's already fast. The
+with a warm pool, around 2 ms. Caching pays for itself when the source is slow - complex
+joins, a remote database, cross-region latency - not when it's already fast. The
 mechanism is sound; this particular workload just doesn't have much to save.
 
 ## Testing
@@ -347,12 +347,12 @@ mechanism is sound; this particular workload just doesn't have much to save.
 
 Needs Docker running, since Testcontainers starts a real Postgres. Fifteen tests covering:
 
-- the API surface — created, validation failures, not found, pagination
-- auth — unauthenticated requests, bad credentials, duplicate registration
-- multi-tenancy — two users submit jobs, each sees only their own
-- the worker — success, retry with backoff, dead-lettering, unknown job types
-- concurrency — four threads, thirty jobs, every job executed exactly once
-- the schema itself — the database rejects invalid status values and attempt counts
+- the API surface - created, validation failures, not found, pagination
+- auth - unauthenticated requests, bad credentials, duplicate registration
+- multi-tenancy - two users submit jobs, each sees only their own
+- the worker - success, retry with backoff, dead-lettering, unknown job types
+- concurrency - four threads, thirty jobs, every job executed exactly once
+- the schema itself - the database rejects invalid status values and attempt counts
 
 CI runs the whole suite on every push and pull request.
 
@@ -360,7 +360,7 @@ CI runs the whole suite on every push and pull request.
 
 A few things cost me more time than they should have, recorded here in case they save someone else the afternoon:
 
-**Spring Boot 4 broke my Flyway setup silently.** Migrations just never ran. No error, no log line, clean startup. Boot 4 split auto-configuration into per-technology starters, so having `flyway-core` on the classpath is no longer enough — you need `spring-boot-starter-flyway` or the auto-config never activates. Nothing logs, because the class that would do the logging was never loaded.
+**Spring Boot 4 broke my Flyway setup silently.** Migrations just never ran. No error, no log line, clean startup. Boot 4 split auto-configuration into per-technology starters, so having `flyway-core` on the classpath is no longer enough - you need `spring-boot-starter-flyway` or the auto-config never activates. Nothing logs, because the class that would do the logging was never loaded.
 
 **A "broken" Docker Desktop turned out to be a full disk.** The update button did nothing when clicked, repeatedly. There was 2.2 GB free and the update needed 541 MB plus room to extract. Worth checking the boring explanation first.
 
@@ -368,14 +368,14 @@ A few things cost me more time than they should have, recorded here in case they
 
 ## Where it's going
 
-- [x] **v0.1** — Job submission API, migrations, integration tests, CI
-- [x] **v0.2** — JWT auth, BCrypt, per-user job ownership
-- [x] **v0.3** — Worker execution, retries with exponential backoff, dead-lettering
-- [x] **v0.4** — Scheduled and recurring jobs
-- [x] **v0.5** — Redis-backed rate limiting and read caching
-- [x] **v0.6** — Kafka job lifecycle events and job cancellation
-- [x] **v0.7** — Prometheus metrics and Grafana dashboards
-- [ ] **v0.8** — Horizontally scaled workers
+- [x] **v0.1** - Job submission API, migrations, integration tests, CI
+- [x] **v0.2** - JWT auth, BCrypt, per-user job ownership
+- [x] **v0.3** - Worker execution, retries with exponential backoff, dead-lettering
+- [x] **v0.4** - Scheduled and recurring jobs
+- [x] **v0.5** - Redis-backed rate limiting and read caching
+- [x] **v0.6** - Kafka job lifecycle events and job cancellation
+- [x] **v0.7** - Prometheus metrics and Grafana dashboards
+- [ ] **v0.8** - Horizontally scaled workers
 
 ## Stack
 
