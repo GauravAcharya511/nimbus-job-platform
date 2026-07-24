@@ -218,6 +218,21 @@ Job queries are scoped by owner (`findByIdAndUserId`), so a job you don't own is
 
 Testcontainers spins up an actual database and applies the real migrations. H2 would be faster, but it wouldn't enforce the `CHECK` constraints or support `SKIP LOCKED`, which means the two most interesting tests in the suite would pass without testing anything.
 
+### Rate limiting
+
+Authenticated callers get a per-user token bucket: 100 requests capacity, refilling at
+20/sec. Exceeding it returns `429`. Both values are configurable via
+`NIMBUS_RATELIMIT_CAPACITY` and `NIMBUS_RATELIMIT_REFILL`.
+
+The bucket update runs as a **Lua script inside Redis**, which matters more than it
+might look. A read-check-write in application code races: two concurrent requests can
+both observe the last token and both be allowed through. Lua scripts execute atomically
+on the Redis server, so the whole sequence is indivisible. There's a test that fires 80
+concurrent attempts at a bucket of 10 and asserts no more than 12 get through.
+
+If Redis is unreachable the limiter fails open. Throttling is a protection, not a
+correctness guarantee, and losing it shouldn't take the API down with it.
+
 ## Performance
 
 Measured against the containerized stack on Apple Silicon, single worker instance:
@@ -227,6 +242,8 @@ Measured against the containerized stack on Apple Silicon, single worker instanc
 | Submission throughput | **350 req/sec** — 1,000 jobs in 2.86s |
 | Execution throughput | **370 jobs/sec** — 1,000 jobs drained in 2.70s |
 | Single job, end to end | **~18 ms** from submit to `SUCCEEDED` |
+| Job read, uncached (Postgres) | 2.15 ms p50 |
+| Job read, cached (Redis) | **1.20 ms p50** — 1.8× faster |
 
 The interesting part is how I got there. My first run drained at 10 jobs/sec and I nearly wrote that number down. It was wrong — or rather, it was measuring the wrong thing. The worker polled once per second with a batch size of 10, so it was structurally incapable of exceeding 10 jobs/sec no matter how fast anything else ran. Dropping the poll to 200ms and the batch to 50 took it to 370 jobs/sec. Same query, same database, 37× the throughput.
 
@@ -240,8 +257,17 @@ Reproduce it yourself:
 
 ```bash
 docker compose up -d --build
-./scripts/benchmark.sh 1000
+NIMBUS_RATELIMIT_ENABLED=false ./scripts/benchmark.sh 1000
 ```
+
+The rate limiter has to be off for benchmarking, or the run measures the limiter rather
+than the system. I found that out by having a benchmark throttle itself.
+
+The caching result is deliberately unimpressive and worth being honest about: 1.8× is a
+small win because the uncached path is already a primary-key lookup on a local database
+with a warm pool, around 2 ms. Caching pays for itself when the source is slow — complex
+joins, a remote database, cross-region latency — not when it's already fast. The
+mechanism is sound; this particular workload just doesn't have much to save.
 
 ## Testing
 
@@ -276,7 +302,7 @@ A few things cost me more time than they should have, recorded here in case they
 - [x] **v0.2** — JWT auth, BCrypt, per-user job ownership
 - [x] **v0.3** — Worker execution, retries with exponential backoff, dead-lettering
 - [x] **v0.4** — Scheduled and recurring jobs
-- [ ] **v0.5** — Redis-backed queue and distributed locking
+- [x] **v0.5** — Redis-backed rate limiting and read caching
 - [ ] **v0.6** — Kafka events for the job lifecycle
 - [ ] **v0.7** — Prometheus metrics and Grafana dashboards
 - [ ] **v0.8** — Horizontally scaled workers

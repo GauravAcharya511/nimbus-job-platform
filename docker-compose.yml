@@ -16,11 +16,24 @@ services:
       timeout: 3s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    container_name: nimbus-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   app:
     build: .
     container_name: nimbus-app
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/nimbus
@@ -28,6 +41,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: nimbus
       NIMBUS_JWT_SECRET: dev-only-secret-change-me-min-32-bytes-long!!
       NIMBUS_PORT: 8081
+      SPRING_DATA_REDIS_HOST: redis
     ports:
       - "8081:8081"
 

@@ -9,7 +9,7 @@ public record JobResponse(
         OffsetDateTime createdAt, OffsetDateTime startedAt, OffsetDateTime completedAt,
         OffsetDateTime nextAttemptAt, String cronExpression, UUID parentJobId
 ) {
-    static JobResponse from(Job j) {
+    public static JobResponse from(Job j) {
         return new JobResponse(j.getId(), j.getType(), j.getPayload(), j.getStatus(),
                 j.getAttempts(), j.getMaxAttempts(), j.getErrorMessage(),
                 j.getCreatedAt(), j.getStartedAt(), j.getCompletedAt(),
