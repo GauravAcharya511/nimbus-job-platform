@@ -1,0 +1,60 @@
+{
+  "title": "Nimbus — Job Execution Platform",
+  "uid": "nimbus-main",
+  "timezone": "browser",
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "type": "stat", "title": "Jobs submitted",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [{ "expr": "nimbus_jobs_submitted_total", "refId": "A" }]
+    },
+    {
+      "type": "stat", "title": "Succeeded",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [{ "expr": "nimbus_jobs_completed_total{outcome=\"succeeded\"}", "refId": "A" }]
+    },
+    {
+      "type": "stat", "title": "Dead-lettered",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "targets": [{ "expr": "nimbus_jobs_dead_lettered_total", "refId": "A" }]
+    },
+    {
+      "type": "stat", "title": "Queue depth",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "targets": [{ "expr": "nimbus_queue_depth", "refId": "A" }]
+    },
+    {
+      "type": "timeseries", "title": "Throughput (jobs/sec)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        { "expr": "rate(nimbus_jobs_submitted_total[1m])", "legendFormat": "submitted", "refId": "A" },
+        { "expr": "rate(nimbus_jobs_completed_total{outcome=\"succeeded\"}[1m])", "legendFormat": "succeeded", "refId": "B" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "Execution latency",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "expr": "nimbus_job_execution_seconds{quantile=\"0.5\"}", "legendFormat": "p50", "refId": "A" },
+        { "expr": "nimbus_job_execution_seconds{quantile=\"0.95\"}", "legendFormat": "p95", "refId": "B" },
+        { "expr": "nimbus_job_execution_seconds{quantile=\"0.99\"}", "legendFormat": "p99", "refId": "C" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "Retries and dead letters",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        { "expr": "rate(nimbus_jobs_retried_total[1m])", "legendFormat": "retries", "refId": "A" },
+        { "expr": "rate(nimbus_jobs_dead_lettered_total[1m])", "legendFormat": "dead-lettered", "refId": "B" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "Queue depth over time",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [{ "expr": "nimbus_queue_depth", "legendFormat": "pending", "refId": "A" }]
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 package com.gauravacharya.nimbus.ratelimit;
 
+import com.gauravacharya.nimbus.metrics.JobMetrics;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,8 +21,12 @@ import java.io.IOException;
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private final RateLimiter limiter;
+    private final JobMetrics metrics;
 
-    public RateLimitFilter(RateLimiter limiter) { this.limiter = limiter; }
+    public RateLimitFilter(RateLimiter limiter, JobMetrics metrics) {
+        this.limiter = limiter;
+        this.metrics = metrics;
+    }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -40,6 +45,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
         String identity = auth.getDetails().toString();
         if (!limiter.tryAcquire(identity)) {
+            metrics.recordRateLimited();
             response.setStatus(429);
             response.setContentType("application/problem+json");
             response.getWriter().write(

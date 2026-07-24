@@ -275,6 +275,34 @@ concurrent attempts at a bucket of 10 and asserts no more than 12 get through.
 If Redis is unreachable the limiter fails open. Throttling is a protection, not a
 correctness guarantee, and losing it shouldn't take the API down with it.
 
+## Metrics
+
+Micrometer exposes application metrics in Prometheus format at
+`/actuator/prometheus`. Prometheus and Grafana ship in the compose file with a
+pre-provisioned dashboard, so `docker compose up` gives you graphs at
+`localhost:3000` with nothing to configure.
+
+```
+nimbus_jobs_submitted_total                              41.0
+nimbus_jobs_completed_total{outcome="succeeded"}         40.0
+nimbus_jobs_completed_total{outcome="failed"}             3.0
+nimbus_jobs_retried_total                                 2.0
+nimbus_jobs_dead_lettered_total                           1.0
+nimbus_queue_depth                                        0.0
+nimbus_job_execution_seconds{quantile="0.5"}          0.000143
+nimbus_job_execution_seconds{quantile="0.95"}         0.000307
+nimbus_job_execution_seconds{quantile="0.99"}         0.001831
+```
+
+The counters and the timer answer "how much" and "how long", but **queue depth is the
+one that matters operationally**. Throughput and latency tell you what already happened;
+a rising backlog tells you workers are falling behind *before* users notice anything.
+It's the metric you'd alert on.
+
+The monitoring images bake their config in rather than bind-mounting it from the host.
+That keeps the stack self-contained and reproducible, and avoids depending on host
+file-sharing behaviour, which is inconsistent across platforms.
+
 ## Performance
 
 Measured against the containerized stack on Apple Silicon, single worker instance:
@@ -346,7 +374,7 @@ A few things cost me more time than they should have, recorded here in case they
 - [x] **v0.4** — Scheduled and recurring jobs
 - [x] **v0.5** — Redis-backed rate limiting and read caching
 - [x] **v0.6** — Kafka job lifecycle events and job cancellation
-- [ ] **v0.7** — Prometheus metrics and Grafana dashboards
+- [x] **v0.7** — Prometheus metrics and Grafana dashboards
 - [ ] **v0.8** — Horizontally scaled workers
 
 ## Stack
