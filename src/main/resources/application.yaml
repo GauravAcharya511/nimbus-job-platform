@@ -50,10 +50,13 @@ logging:
     org.flywaydb: DEBUG
 
 management:
+  metrics:
+    tags:
+      application: nimbus
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
 
 nimbus:
   events:

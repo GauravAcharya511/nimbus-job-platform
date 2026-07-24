@@ -1,6 +1,7 @@
 package com.gauravacharya.nimbus.job;
 
 import com.gauravacharya.nimbus.events.JobEvent;
+import com.gauravacharya.nimbus.metrics.JobMetrics;
 import com.gauravacharya.nimbus.events.JobEventPublisher;
 import com.gauravacharya.nimbus.events.JobEventType;
 import com.gauravacharya.nimbus.security.CurrentUser;
@@ -20,10 +21,12 @@ public class JobService {
 
     private final JobRepository repository;
     private final JobEventPublisher events;
+    private final JobMetrics metrics;
 
-    public JobService(JobRepository repository, JobEventPublisher events) {
+    public JobService(JobRepository repository, JobEventPublisher events, JobMetrics metrics) {
         this.repository = repository;
         this.events = events;
+        this.metrics = metrics;
     }
 
     @CacheEvict(value = "jobs", allEntries = true)
@@ -51,6 +54,7 @@ public class JobService {
         Job saved = repository.save(job);
         events.publish(JobEvent.of(saved.getId(), saved.getUserId(), saved.getType(),
                 JobEventType.SUBMITTED, saved.getAttempts(), null));
+        metrics.recordSubmitted();
         return JobResponse.from(saved);
     }
 
@@ -88,6 +92,7 @@ public class JobService {
 
         events.publish(JobEvent.of(saved.getId(), saved.getUserId(), saved.getType(),
                 JobEventType.CANCELLED, saved.getAttempts(), null));
+        metrics.recordCancelled();
         return JobResponse.from(saved);
     }
 

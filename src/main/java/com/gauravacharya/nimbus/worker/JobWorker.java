@@ -7,6 +7,7 @@ import com.gauravacharya.nimbus.job.Job;
 import com.gauravacharya.nimbus.job.JobRepository;
 import com.gauravacharya.nimbus.job.JobService;
 import com.gauravacharya.nimbus.job.JobStatus;
+import com.gauravacharya.nimbus.metrics.JobMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,6 +17,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -35,15 +38,17 @@ public class JobWorker {
     private final JobRepository jobs;
     private final JobExecutorRegistry registry;
     private final JobEventPublisher events;
+    private final JobMetrics metrics;
     private final ApplicationContext context;
     private final int batchSize;
 
     public JobWorker(JobRepository jobs, JobExecutorRegistry registry, JobEventPublisher events,
-                     ApplicationContext context,
+                     JobMetrics metrics, ApplicationContext context,
                      @Value("${nimbus.worker.batch-size:50}") int batchSize) {
         this.jobs = jobs;
         this.registry = registry;
         this.events = events;
+        this.metrics = metrics;
         this.context = context;
         this.batchSize = batchSize;
     }
@@ -51,6 +56,7 @@ public class JobWorker {
     private JobWorker self() { return context.getBean(JobWorker.class); }
 
     public void poll() {
+        metrics.setQueueDepth(jobs.countClaimable(OffsetDateTime.now()));
         for (UUID id : self().claimBatch()) {
             self().runJob(id);
         }
@@ -74,14 +80,17 @@ public class JobWorker {
         Job job = jobs.findById(jobId).orElse(null);
         if (job == null) return;
 
+        Instant started = Instant.now();
         try {
             JobExecutor executor = registry.forType(job.getType())
                     .orElseThrow(() -> new IllegalArgumentException(
                             "No executor registered for type: " + job.getType()));
             executor.execute(job);
             markSucceeded(job);
+            metrics.recordSucceeded(Duration.between(started, Instant.now()));
         } catch (Exception e) {
             markFailedOrRetry(job, e);
+            metrics.recordFailed(Duration.between(started, Instant.now()));
         }
         jobs.save(job);
 
@@ -91,15 +100,15 @@ public class JobWorker {
         }
     }
 
+    private static UUID seriesId(Job job) {
+        return job.getParentJobId() != null ? job.getParentJobId() : job.getId();
+    }
+
     /**
      * Enqueues the following occurrence of a recurring job. Each run is a distinct
      * row linked to the originating job, so execution history is preserved rather
      * than overwritten.
      */
-    private static UUID seriesId(Job job) {
-        return job.getParentJobId() != null ? job.getParentJobId() : job.getId();
-    }
-
     private void scheduleNextOccurrence(Job completed) {
         OffsetDateTime next = JobService.nextOccurrence(
                 completed.getCronExpression(), OffsetDateTime.now());
@@ -139,6 +148,7 @@ public class JobWorker {
             job.setCompletedAt(OffsetDateTime.now());
             events.publish(JobEvent.of(job.getId(), job.getUserId(), job.getType(),
                     JobEventType.DEAD_LETTERED, attempts, e.getMessage()));
+            metrics.recordDeadLettered();
             log.warn("job {} exhausted {} attempts, dead-lettering", job.getId(), attempts);
         } else {
             long backoffSeconds = (long) Math.pow(2, attempts);
@@ -146,6 +156,7 @@ public class JobWorker {
             job.setNextAttemptAt(OffsetDateTime.now().plusSeconds(backoffSeconds));
             events.publish(JobEvent.of(job.getId(), job.getUserId(), job.getType(),
                     JobEventType.RETRY_SCHEDULED, attempts, e.getMessage()));
+            metrics.recordRetry();
             log.info("job {} attempt {} failed, retrying in {}s", job.getId(), attempts, backoffSeconds);
         }
     }

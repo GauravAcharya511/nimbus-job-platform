@@ -49,4 +49,12 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
              AND (j.id = :seriesId OR j.parentJobId = :seriesId)
            """)
     boolean existsCancelledInSeries(@Param("seriesId") UUID seriesId);
+
+    /** Jobs due for execution right now — the backlog the workers are draining. */
+    @Query("""
+           SELECT COUNT(j) FROM Job j
+           WHERE j.status = com.gauravacharya.nimbus.job.JobStatus.PENDING
+             AND j.nextAttemptAt <= :now
+           """)
+    long countClaimable(@Param("now") OffsetDateTime now);
 }
