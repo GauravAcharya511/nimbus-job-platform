@@ -344,14 +344,16 @@ mechanism is sound; this particular workload just doesn't have much to save.
 ```bash
 ./mvnw verify
 ```
-
-Needs Docker running, since Testcontainers starts a real Postgres. Fifteen tests covering:
+Needs Docker running, since Testcontainers starts a real Postgres. Twenty-nine tests covering:
 
 - the API surface - created, validation failures, not found, pagination
 - auth - unauthenticated requests, bad credentials, duplicate registration
 - multi-tenancy - two users submit jobs, each sees only their own
 - the worker - success, retry with backoff, dead-lettering, unknown job types
 - concurrency - four threads, thirty jobs, every job executed exactly once
+- scheduling - one-off future jobs, cron recurrence, cancelling a series
+- rate limiting - the token bucket refills, blocks over budget, and fails open
+- job lifecycle events - each transition publishes, keyed by job id
 - the schema itself - the database rejects invalid status values and attempt counts
 
 CI runs the whole suite on every push and pull request.
