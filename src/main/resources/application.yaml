@@ -11,6 +11,12 @@ spring:
     password: nimbus
     driver-class-name: org.postgresql.Driver
 
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      timeout: 2s
+
   jpa:
     hibernate:
       ddl-auto: validate
@@ -35,6 +41,10 @@ management:
         include: health,info,metrics
 
 nimbus:
+  ratelimit:
+    enabled: ${NIMBUS_RATELIMIT_ENABLED:true}
+    capacity: ${NIMBUS_RATELIMIT_CAPACITY:100}
+    refill-per-second: ${NIMBUS_RATELIMIT_REFILL:20}
   worker:
     poll-interval-ms: ${NIMBUS_WORKER_POLL_MS:200}
     batch-size: ${NIMBUS_WORKER_BATCH_SIZE:50}

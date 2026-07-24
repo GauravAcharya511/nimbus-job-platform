@@ -1,6 +1,8 @@
 package com.gauravacharya.nimbus.job;
 
 import com.gauravacharya.nimbus.security.CurrentUser;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.support.CronExpression;
@@ -17,6 +19,7 @@ public class JobService {
 
     public JobService(JobRepository repository) { this.repository = repository; }
 
+    @CacheEvict(value = "jobs", allEntries = true)
     @Transactional
     public JobResponse submit(CreateJobRequest request) {
         Job job = new Job();
@@ -54,6 +57,7 @@ public class JobService {
         return repository.findByUserId(CurrentUser.id(), pageable).map(JobResponse::from);
     }
 
+    @Cacheable(value = "jobs", key = "#id")
     @Transactional(readOnly = true)
     public JobResponse findById(UUID id) {
         return repository.findByIdAndUserId(id, CurrentUser.id())
